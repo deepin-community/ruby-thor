@@ -1,0 +1,35 @@
+Source: ruby-thor
+Section: ruby
+Priority: optional
+Maintainer: Debian Ruby Team <pkg-ruby-extras-maintainers@lists.alioth.debian.org>
+Uploaders: Lucas Nussbaum <lucas@debian.org>
+Build-Depends: ruby-bundler,
+               debhelper-compat (= 13),
+               gem2deb (>= 1),
+               rake,
+               ruby-coveralls,
+               ruby-diff-lcs,
+               ruby-fakeweb,
+               ruby-rspec (>= 2.13.0~),
+               ruby-simplecov,
+               ruby-webmock
+Standards-Version: 4.5.1
+Vcs-Git: https://salsa.debian.org/ruby-team/ruby-thor.git
+Vcs-Browser: https://salsa.debian.org/ruby-team/ruby-thor
+Homepage: http://whatisthor.com/
+Testsuite: autopkgtest-pkg-ruby
+XS-Ruby-Versions: all
+Rules-Requires-Root: no
+
+Package: ruby-thor
+Architecture: all
+XB-Ruby-Versions: ${ruby:Versions}
+Depends: ruby | ruby-interpreter,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: ruby-coveralls (<< 0.8.23-1~)
+Description: Ruby scripting framework
+ Thor is a simple and efficient scripting framework for building
+ self-documenting command line utilities.
+ .
+ It can be used to replace rake, sake and rubigen.

@@ -1,0 +1,3 @@
+exclude-git-test.patch
+0002-Disable-tests-that-depend-on-readline-as-ruby-rb-rea.patch
+0003-Disable-broken-test.patch

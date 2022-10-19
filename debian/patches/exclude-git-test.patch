@@ -1,0 +1,27 @@
+From: Jongmin Kim <jmkim@pukyong.ac.kr>
+Date: Sat, 16 Jan 2021 09:37:49 +0100
+Subject: Exclude test which uses git
+
+Last-Update: 2019-06-01
+---
+ spec/quality_spec.rb | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/spec/quality_spec.rb b/spec/quality_spec.rb
+index 99efb62..3942a0c 100644
+--- a/spec/quality_spec.rb
++++ b/spec/quality_spec.rb
+@@ -36,6 +36,7 @@ describe "The library itself" do
+     match(&:empty?)
+   end
+ 
++=begin
+   it "has no malformed whitespace" do
+     exempt = /\.gitmodules|\.marshal|fixtures|vendor|spec|ssl_certs|LICENSE/
+     error_messages = []
+@@ -60,4 +61,5 @@ describe "The library itself" do
+     end
+     expect(error_messages.compact).to be_well_formed
+   end
++=end
+ end
