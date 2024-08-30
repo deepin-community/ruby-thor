@@ -7,6 +7,8 @@ describe Thor::Shell::Color do
 
   before do
     allow($stdout).to receive(:tty?).and_return(true)
+    allow(ENV).to receive(:[]).and_return(nil)
+    allow(ENV).to receive(:[]).with("TERM").and_return("ansi")
     allow_any_instance_of(StringIO).to receive(:tty?).and_return(true)
   end
 
@@ -16,16 +18,34 @@ describe Thor::Shell::Color do
       shell.ask "Is this green?", :green
 
       expect(Thor::LineEditor).to receive(:readline).with("\e[32mIs this green? [Yes, No, Maybe] \e[0m", anything).and_return("Yes")
-      shell.ask "Is this green?", :green, :limited_to => %w(Yes No Maybe)
+      shell.ask "Is this green?", :green, limited_to: %w(Yes No Maybe)
     end
 
-    it "does not set the color if specified and NO_COLOR is set" do
-      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("")
+    it "does not set the color if specified and NO_COLOR is set to a non-empty value" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("non-empty value")
       expect(Thor::LineEditor).to receive(:readline).with("Is this green? ", anything).and_return("yes")
       shell.ask "Is this green?", :green
 
       expect(Thor::LineEditor).to receive(:readline).with("Is this green? [Yes, No, Maybe] ", anything).and_return("Yes")
-      shell.ask "Is this green?", :green, :limited_to => %w(Yes No Maybe)
+      shell.ask "Is this green?", :green, limited_to: %w(Yes No Maybe)
+    end
+
+    it "sets the color when NO_COLOR is ignored because the environment variable is nil" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return(nil)
+      expect(Thor::LineEditor).to receive(:readline).with("\e[32mIs this green? \e[0m", anything).and_return("yes")
+      shell.ask "Is this green?", :green
+
+      expect(Thor::LineEditor).to receive(:readline).with("\e[32mIs this green? [Yes, No, Maybe] \e[0m", anything).and_return("Yes")
+      shell.ask "Is this green?", :green, limited_to: %w(Yes No Maybe)
+    end
+
+    it "sets the color when NO_COLOR is ignored because the environment variable is an empty-string" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("")
+      expect(Thor::LineEditor).to receive(:readline).with("\e[32mIs this green? \e[0m", anything).and_return("yes")
+      shell.ask "Is this green?", :green
+
+      expect(Thor::LineEditor).to receive(:readline).with("\e[32mIs this green? [Yes, No, Maybe] \e[0m", anything).and_return("Yes")
+      shell.ask "Is this green?", :green, limited_to: %w(Yes No Maybe)
     end
 
     it "handles an Array of colors" do
@@ -57,13 +77,31 @@ describe Thor::Shell::Color do
       expect(out.chomp).to eq("Wow! Now we have colors!")
     end
 
-    it "does not set the color if NO_COLOR is set" do
-      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("")
+    it "does not set the color if NO_COLOR is set to any value that is not an empty string" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("non-empty string value")
       out = capture(:stdout) do
-        shell.say "Wow! Now we have colors!", :green
+        shell.say "NO_COLOR is enforced! We should not have colors!", :green
       end
 
-      expect(out.chomp).to eq("Wow! Now we have colors!")
+      expect(out.chomp).to eq("NO_COLOR is enforced! We should not have colors!")
+    end
+
+    it "colors are still used and NO_COLOR is ignored if the environment variable is nil" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return(nil)
+      out = capture(:stdout) do
+        shell.say "NO_COLOR is ignored! We have colors!", :green
+      end
+
+      expect(out.chomp).to eq("\e[32mNO_COLOR is ignored! We have colors!\e[0m")
+    end
+
+    it "colors are still used and NO_COLOR is ignored if the environment variable is an empty-string" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("")
+      out = capture(:stdout) do
+        shell.say "NO_COLOR is ignored! We have colors!", :green
+      end
+
+      expect(out.chomp).to eq("\e[32mNO_COLOR is ignored! We have colors!\e[0m")
     end
 
     it "does not use a new line even with colors" do
@@ -131,17 +169,45 @@ describe Thor::Shell::Color do
       expect(colorless).to eq("hi!")
     end
 
-    it "does nothing when the terminal does not support color" do
+    it "does nothing when stdout is not a tty" do
       allow($stdout).to receive(:tty?).and_return(false)
       colorless = shell.set_color "hi!", :white
       expect(colorless).to eq("hi!")
     end
 
-    it "does nothing when the terminal has the NO_COLOR environment variable set" do
-      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("")
+    it "does nothing when the TERM environment variable is set to 'dumb'" do
+      allow(ENV).to receive(:[]).with("TERM").and_return("dumb")
+      colorless = shell.set_color "hi!", :white
+      expect(colorless).to eq("hi!")
+    end
+
+    it "does nothing when the NO_COLOR environment variable is set to a non-empty string" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("non-empty value")
       allow($stdout).to receive(:tty?).and_return(true)
       colorless = shell.set_color "hi!", :white
       expect(colorless).to eq("hi!")
+    end
+
+    it "sets color when the NO_COLOR environment variable is ignored for being nil" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return(nil)
+      allow($stdout).to receive(:tty?).and_return(true)
+
+      red = shell.set_color "hi!", :red
+      expect(red).to eq("\e[31mhi!\e[0m")
+
+      on_red = shell.set_color "hi!", :white, :on_red
+      expect(on_red).to eq("\e[37m\e[41mhi!\e[0m")
+    end
+
+    it "sets color when the NO_COLOR environment variable is ignored for being an empty string" do
+      allow(ENV).to receive(:[]).with("NO_COLOR").and_return("")
+      allow($stdout).to receive(:tty?).and_return(true)
+
+      red = shell.set_color "hi!", :red
+      expect(red).to eq("\e[31mhi!\e[0m")
+
+      on_red = shell.set_color "hi!", :white, :on_red
+      expect(on_red).to eq("\e[37m\e[41mhi!\e[0m")
     end
   end
 

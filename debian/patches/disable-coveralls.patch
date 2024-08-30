@@ -1,0 +1,23 @@
+From: "HIGUCHI Daisuke (VDR dai)" <dai@debian.org>
+Date: Sat, 26 Aug 2023 16:26:49 +0200
+Subject: disable coveralls
+
+Forwarded: not-needed
+Last-Update: 2022-12-28
+---
+ spec/helper.rb | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+--- a/spec/helper.rb
++++ b/spec/helper.rb
+@@ -1,9 +1,8 @@
+ $TESTING = true
+ 
+ require "simplecov"
+-require "coveralls"
+ 
+-SimpleCov.formatters = [SimpleCov::Formatter::HTMLFormatter, Coveralls::SimpleCov::Formatter]
++SimpleCov.formatters = [SimpleCov::Formatter::HTMLFormatter]
+ 
+ SimpleCov.start do
+   add_filter "/spec"

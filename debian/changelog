@@ -1,3 +1,57 @@
+ruby-thor (1.3.1-1) unstable; urgency=medium
+
+  * New upstream version 1.3.1
+
+ -- Lucas Nussbaum <lucas@debian.org>  Sun, 03 Mar 2024 11:39:04 +0100
+
+ruby-thor (1.3.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version 1.3.0
+  * Refresh patches
+  * Bump Standards-Version to 4.6.2 (no changes needed)
+
+ -- Mohammed Bilal <rmb@debian.org>  Wed, 03 Jan 2024 16:52:53 +0000
+
+ruby-thor (1.2.2-1) unstable; urgency=medium
+
+  * New upstream version 1.2.2
+  * Upstream metadata: add Changelog
+  * debian/watch: refresh using dh-make-ruby -w .
+  * Refresh patches:
+    + Drop patch 0003-Disable-broken-test.patch (no longer broken)
+    + Drop patch fix-options-spec.patch (upstreamed)
+    + Drop patch fix-specs-to-work-with-latest-rspec-mock.patch (upstreamed)
+    + Refresh patch disable-coveralls.patch
+
+ -- Lucas Nussbaum <lucas@debian.org>  Sat, 26 Aug 2023 17:21:49 +0200
+
+ruby-thor (1.2.1-2) unstable; urgency=medium
+
+  * Team upload.
+
+  [ HIGUCHI Daisuke (VDR dai) ]
+  * fix FTBFS rspec-mock 3.12 and ruby 3.1 (Closes: #1027093).
+  * Drop XS-Ruby-Version and XB-Ruby-Version.
+  * d/p/*: set Forwarded as no.
+  * disable coveralls (ruby-coveralls is not working at Salsa).
+  * d/p/skip-no-thorfiles-test.patch: Skip some failure test in Salsa CI.
+  * clean coverage and spec/sandbox directories.
+  * Bump Standards-Version to 4.6.1.
+
+ -- HIGUCHI Daisuke (VDR dai) <dai@debian.org>  Thu, 29 Dec 2022 21:29:17 +0900
+
+ruby-thor (1.2.1-1) unstable; urgency=medium
+
+  * New upstream release: 1.2.1
+  * Refresh debian/patches/exclude-git-test.patch
+  * Bump Standards-Version to 4.6.0. No changes needed.
+  * Change Depends to dh-make-ruby's defaults
+  * Refresh debian/patches/0002-Disable-tests-that-depend-on-readline-as-
+    ruby-rb-rea.patch
+
+ -- Lucas Nussbaum <lucas@debian.org>  Wed, 09 Mar 2022 09:27:42 +0100
+
 ruby-thor (1.0.1-1) unstable; urgency=medium
 
   [ Cédric Boutillier ]

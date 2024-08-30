@@ -1,11 +1,8 @@
 require "helper"
 
-class Application; end
-module ApplicationHelper; end
-
 describe Thor::Actions do
-  def runner(options = {})
-    @runner ||= MyCounter.new([1], options, :destination_root => destination_root)
+  def runner(options = {}, behavior = :invoke)
+    @runner ||= MyCounter.new([1], options, destination_root: destination_root, behavior: behavior)
   end
 
   def action(*args, &block)
@@ -36,7 +33,7 @@ describe Thor::Actions do
 
     it "does not execute the command if pretending" do
       expect(FileUtils).not_to receive(:chmod_R)
-      runner(:pretend => true)
+      runner(pretend: true)
       action :chmod, "foo", 0755
     end
 
@@ -47,7 +44,7 @@ describe Thor::Actions do
 
     it "does not log status if required" do
       expect(FileUtils).to receive(:chmod_R).with(0755, file)
-      expect(action(:chmod, "foo", 0755, :verbose => false)).to be_empty
+      expect(action(:chmod, "foo", 0755, verbose: false)).to be_empty
     end
   end
 
@@ -70,7 +67,7 @@ describe Thor::Actions do
     end
 
     it "copies file from source to default destination and preserves file mode" do
-      action :copy_file, "preserve/script.sh", :mode => :preserve
+      action :copy_file, "preserve/script.sh", mode: :preserve
       original = File.join(source_root, "preserve/script.sh")
       copy = File.join(destination_root, "preserve/script.sh")
       expect(File.stat(original).mode).to eq(File.stat(copy).mode)
@@ -78,7 +75,7 @@ describe Thor::Actions do
 
     it "copies file from source to default destination and preserves file mode for templated filenames" do
       expect(runner).to receive(:filename).and_return("app")
-      action :copy_file, "preserve/%filename%.sh", :mode => :preserve
+      action :copy_file, "preserve/%filename%.sh", mode: :preserve
       original = File.join(source_root, "preserve/%filename%.sh")
       copy = File.join(destination_root, "preserve/app.sh")
       expect(File.stat(original).mode).to eq(File.stat(copy).mode)
@@ -96,7 +93,7 @@ describe Thor::Actions do
     end
   end
 
-  describe "#link_file", :unless => windows? do
+  describe "#link_file", unless: windows? do
     it "links file from source to default destination" do
       action :link_file, "command.thor"
       exists_and_identical?("command.thor", "command.thor")
@@ -147,7 +144,7 @@ describe Thor::Actions do
 
     it "accepts http remote sources" do
       body = "__start__\nHTTPFILE\n__end__\n"
-      stub_request(:get, "http://example.com/file.txt").to_return(:body => body.dup)
+      stub_request(:get, "http://example.com/file.txt").to_return(body: body.dup)
       action :get, "http://example.com/file.txt" do |content|
         expect(a_request(:get, "http://example.com/file.txt")).to have_been_made
         expect(content).to eq(body)
@@ -156,8 +153,18 @@ describe Thor::Actions do
 
     it "accepts https remote sources" do
       body = "__start__\nHTTPSFILE\n__end__\n"
-      stub_request(:get, "https://example.com/file.txt").to_return(:body => body.dup)
+      stub_request(:get, "https://example.com/file.txt").to_return(body: body.dup)
       action :get, "https://example.com/file.txt" do |content|
+        expect(a_request(:get, "https://example.com/file.txt")).to have_been_made
+        expect(content).to eq(body)
+      end
+    end
+
+    it "accepts http headers" do
+      body = "__start__\nHTTPFILE\n__end__\n"
+      headers = {"Content-Type" => "application/json"}
+      stub_request(:get, "https://example.com/file.txt").with(headers: headers).to_return(body: body.dup)
+      action :get, "https://example.com/file.txt", {http_headers: headers} do |content|
         expect(a_request(:get, "https://example.com/file.txt")).to have_been_made
         expect(content).to eq(body)
       end
@@ -217,7 +224,7 @@ describe Thor::Actions do
     it "accepts a context to use as the binding" do
       begin
         @klass = "FooBar"
-        action :template, "doc/config.rb", :context => eval("binding")
+        action :template, "doc/config.rb", context: eval("binding")
         expect(File.read(File.join(destination_root, "doc/config.rb"))).to eq("class FooBar; end\n")
       ensure
         remove_instance_variable(:@klass)
@@ -259,13 +266,20 @@ describe Thor::Actions do
         expect(File.exist?(file)).to be false
       end
 
+      it "removes broken symlinks too" do
+        link_path = File.join(destination_root, "broken_symlink")
+        ::FileUtils.ln_s("invalid_reference", link_path)
+        action :remove_file, "broken_symlink"
+        expect(File.symlink?(link_path) || File.exist?(link_path)).to be false
+      end
+
       it "removes directories too" do
         action :remove_dir, "doc"
         expect(File.exist?(File.join(destination_root, "doc"))).to be false
       end
 
       it "does not remove if pretending" do
-        runner(:pretend => true)
+        runner(pretend: true)
         action :remove_file, "doc/README"
         expect(File.exist?(file)).to be true
       end
@@ -275,33 +289,97 @@ describe Thor::Actions do
       end
 
       it "does not log status if required" do
-        expect(action(:remove_file, "doc/README", :verbose => false)).to be_empty
+        expect(action(:remove_file, "doc/README", verbose: false)).to be_empty
       end
     end
 
     describe "#gsub_file" do
-      it "replaces the content in the file" do
-        action :gsub_file, "doc/README", "__start__", "START"
-        expect(File.binread(file)).to eq("START\nREADME\n__end__\n")
+      context "with invoke behavior" do
+        it "replaces the content in the file" do
+          action :gsub_file, "doc/README", "__start__", "START"
+          expect(File.binread(file)).to eq("START\nREADME\n__end__\n")
+        end
+
+        it "does not replace if pretending" do
+          runner(pretend: true)
+          action :gsub_file, "doc/README", "__start__", "START"
+          expect(File.binread(file)).to eq("__start__\nREADME\n__end__\n")
+        end
+
+        it "accepts a block" do
+          action(:gsub_file, "doc/README", "__start__") { |match| match.gsub("__", "").upcase }
+          expect(File.binread(file)).to eq("START\nREADME\n__end__\n")
+        end
+
+        it "logs status" do
+          expect(action(:gsub_file, "doc/README", "__start__", "START")).to eq("        gsub  doc/README\n")
+        end
+
+        it "does not log status if required" do
+          expect(action(:gsub_file, file, "__", verbose: false) { |match| match * 2 }).to be_empty
+        end
       end
 
-      it "does not replace if pretending" do
-        runner(:pretend => true)
-        action :gsub_file, "doc/README", "__start__", "START"
-        expect(File.binread(file)).to eq("__start__\nREADME\n__end__\n")
-      end
+      context "with revoke behavior" do
+        context "and no force option" do
+          it "does not replace the content in the file" do
+            runner({}, :revoke)
+            action :gsub_file, "doc/README", "__start__", "START"
+            expect(File.binread(file)).to eq("__start__\nREADME\n__end__\n")
+          end
 
-      it "accepts a block" do
-        action(:gsub_file, "doc/README", "__start__") { |match| match.gsub("__", "").upcase }
-        expect(File.binread(file)).to eq("START\nREADME\n__end__\n")
-      end
+          it "does not replace if pretending" do
+            runner({pretend: true}, :revoke)
+            action :gsub_file, "doc/README", "__start__", "START"
+            expect(File.binread(file)).to eq("__start__\nREADME\n__end__\n")
+          end
 
-      it "logs status" do
-        expect(action(:gsub_file, "doc/README", "__start__", "START")).to eq("        gsub  doc/README\n")
-      end
+          it "does not replace the content in the file when given a block" do
+            runner({}, :revoke)
+            action(:gsub_file, "doc/README", "__start__") { |match| match.gsub("__", "").upcase }
+            expect(File.binread(file)).to eq("__start__\nREADME\n__end__\n")
+          end
 
-      it "does not log status if required" do
-        expect(action(:gsub_file, file, "__", :verbose => false) { |match| match * 2 }).to be_empty
+          it "does not log status" do
+            runner({}, :revoke)
+            expect(action(:gsub_file, "doc/README", "__start__", "START")).to be_empty
+          end
+
+          it "does not log status if required" do
+            runner({}, :revoke)
+            expect(action(:gsub_file, file, "__", verbose: false) { |match| match * 2 }).to be_empty
+          end
+        end
+
+        context "and force option" do
+          it "replaces the content in the file" do
+            runner({}, :revoke)
+            action :gsub_file, "doc/README", "__start__", "START", force: true
+            expect(File.binread(file)).to eq("START\nREADME\n__end__\n")
+          end
+
+          it "does not replace if pretending" do
+            runner({pretend: true}, :revoke)
+            action :gsub_file, "doc/README", "__start__", "START", force: true
+            expect(File.binread(file)).to eq("__start__\nREADME\n__end__\n")
+          end
+
+          it "replaces the content in the file when given a block" do
+            runner({}, :revoke)
+            action(:gsub_file, "doc/README", "__start__", force: true) { |match| match.gsub("__", "").upcase }
+            expect(File.binread(file)).to eq("START\nREADME\n__end__\n")
+          end
+
+          it "logs status" do
+            runner({}, :revoke)
+            expect(action(:gsub_file, "doc/README", "__start__", "START", force: true)).to eq("        gsub  doc/README\n")
+          end
+
+          it "does not log status if required" do
+            runner({}, :revoke)
+            expect(action(:gsub_file, file, "__", verbose: false, force: true) { |match| match * 2 }).to be_empty
+          end
+        end
       end
     end
 
@@ -343,17 +421,17 @@ describe Thor::Actions do
       end
 
       it "appends content to a class" do
-        action :inject_into_class, "application.rb", Application, "  filter_parameters :password\n"
+        action :inject_into_class, "application.rb", "Application", "  filter_parameters :password\n"
         expect(File.binread(file)).to eq("class Application < Base\n  filter_parameters :password\nend\n")
       end
 
       it "accepts a block" do
-        action(:inject_into_class, "application.rb", Application) { "  filter_parameters :password\n" }
+        action(:inject_into_class, "application.rb", "Application") { "  filter_parameters :password\n" }
         expect(File.binread(file)).to eq("class Application < Base\n  filter_parameters :password\nend\n")
       end
 
       it "logs status" do
-        expect(action(:inject_into_class, "application.rb", Application, "  filter_parameters :password\n")).to eq("      insert  application.rb\n")
+        expect(action(:inject_into_class, "application.rb", "Application", "  filter_parameters :password\n")).to eq("      insert  application.rb\n")
       end
 
       it "does not append if class name does not match" do
@@ -368,17 +446,17 @@ describe Thor::Actions do
       end
 
       it "appends content to a module" do
-        action :inject_into_module, "application_helper.rb", ApplicationHelper, "  def help; 'help'; end\n"
+        action :inject_into_module, "application_helper.rb", "ApplicationHelper", "  def help; 'help'; end\n"
         expect(File.binread(file)).to eq("module ApplicationHelper\n  def help; 'help'; end\nend\n")
       end
 
       it "accepts a block" do
-        action(:inject_into_module, "application_helper.rb", ApplicationHelper) { "  def help; 'help'; end\n" }
+        action(:inject_into_module, "application_helper.rb", "ApplicationHelper") { "  def help; 'help'; end\n" }
         expect(File.binread(file)).to eq("module ApplicationHelper\n  def help; 'help'; end\nend\n")
       end
 
       it "logs status" do
-        expect(action(:inject_into_module, "application_helper.rb", ApplicationHelper, "  def help; 'help'; end\n")).to eq("      insert  application_helper.rb\n")
+        expect(action(:inject_into_module, "application_helper.rb", "ApplicationHelper", "  def help; 'help'; end\n")).to eq("      insert  application_helper.rb\n")
       end
 
       it "does not append if module name does not match" do
@@ -397,20 +475,26 @@ describe Thor::Actions do
       File.join(destination_root, "doc", "COMMENTER")
     end
 
-    unmodified_comments_file = /__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n__end__/
+    unmodified_comments_file = /__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/
 
     describe "#uncomment_lines" do
       it "uncomments all matching lines in the file" do
         action :uncomment_lines, "doc/COMMENTER", "green"
-        expect(File.binread(file)).to match(/__start__\n greenblue\n#\n# yellowblue\n#yellowred\n greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n greenblue\n#\n# yellowblue\n#yellowred\n greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/)
 
         action :uncomment_lines, "doc/COMMENTER", "red"
-        expect(File.binread(file)).to match(/__start__\n greenblue\n#\n# yellowblue\nyellowred\n greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n greenblue\n#\n# yellowblue\nyellowred\n greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/)
       end
 
       it "correctly uncomments lines with hashes in them" do
         action :uncomment_lines, "doc/COMMENTER", "ind#igo"
-        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  ind#igo\n  ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  ind#igo\n  ind#igo\n  #   spaces_between\n__end__/)
+      end
+
+      it "will leave the space which existed before the comment hash in tact" do
+        action :uncomment_lines, "doc/COMMENTER", "ind#igo"
+        action :uncomment_lines, "doc/COMMENTER", "spaces_between"
+        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  ind#igo\n  ind#igo\n    spaces_between\n__end__/)
       end
 
       it "does not modify already uncommented lines in the file" do
@@ -421,22 +505,22 @@ describe Thor::Actions do
 
       it "does not uncomment the wrong line when uncommenting lines preceded by blank commented line" do
         action :uncomment_lines, "doc/COMMENTER", "yellow"
-        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\nyellowblue\nyellowred\n #greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\nyellowblue\nyellowred\n #greenred\norange\n    purple\n  ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/)
       end
     end
 
     describe "#comment_lines" do
       it "comments lines which are not commented" do
         action :comment_lines, "doc/COMMENTER", "orange"
-        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\n# orange\n    purple\n  ind#igo\n  # ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\n# orange\n    purple\n  ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/)
 
         action :comment_lines, "doc/COMMENTER", "purple"
-        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\n# orange\n    # purple\n  ind#igo\n  # ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\n# orange\n    # purple\n  ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/)
       end
 
       it "correctly comments lines with hashes in them" do
         action :comment_lines, "doc/COMMENTER", "ind#igo"
-        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  # ind#igo\n  # ind#igo\n__end__/)
+        expect(File.binread(file)).to match(/__start__\n # greenblue\n#\n# yellowblue\n#yellowred\n #greenred\norange\n    purple\n  # ind#igo\n  # ind#igo\n  #   spaces_between\n__end__/)
       end
 
       it "does not modify already commented lines" do
