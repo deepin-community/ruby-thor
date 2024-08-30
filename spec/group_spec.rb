@@ -23,12 +23,16 @@ describe Thor::Group do
 
     it "raises an error if a required argument is added after a non-required" do
       expect do
-        MyCounter.argument(:foo, :type => :string)
+        MyCounter.argument(:foo, type: :string)
       end.to raise_error(ArgumentError, 'You cannot have "foo" as required argument after the non-required argument "second".')
     end
 
     it "raises when an exception happens within the command call" do
-      expect { BrokenCounter.start(%w(1 2 --fail)) }.to raise_error(NameError, /undefined local variable or method `this_method_does_not_exist'/)
+      if RUBY_VERSION < "3.4.0"
+        expect { BrokenCounter.start(%w(1 2 --fail)) }.to raise_error(NameError, /undefined local variable or method `this_method_does_not_exist'/)
+      else
+        expect { BrokenCounter.start(%w(1 2 --fail)) }.to raise_error(NameError, /undefined local variable or method 'this_method_does_not_exist'/)
+      end
     end
 
     it "raises an error when a Thor group command expects arguments" do
@@ -186,8 +190,8 @@ describe Thor::Group do
     it "can handle boolean options followed by arguments" do
       klass = Class.new(Thor::Group) do
         desc "say hi to name"
-        argument :name, :type => :string
-        class_option :loud, :type => :boolean
+        argument :name, type: :string
+        class_option :loud, type: :boolean
 
         def hi
           self.name = name.upcase if options[:loud]
@@ -203,8 +207,8 @@ describe Thor::Group do
     it "provides extra args as `args`" do
       klass = Class.new(Thor::Group) do
         desc "say hi to name"
-        argument :name, :type => :string
-        class_option :loud, :type => :boolean
+        argument :name, type: :string
+        class_option :loud, type: :boolean
 
         def hi
           self.name = name.upcase if options[:loud]
